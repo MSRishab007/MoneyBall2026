@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Moneyball Auction Assistant</title>
+<style>
+:root{
+  --bg:#0f1420; --panel:#1a2233; --panel2:#212b40; --border:#2c3652;
+  --text:#e8edf7; --muted:#93a1c0; --accent:#4f8cff; --good:#2ecc71; --warn:#f5a623; --bad:#ff5c5c;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+  box-sizing:border-box;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){ --bg:#f4f6fb; --panel:#ffffff; --panel2:#eef1f8; --border:#dbe1ee; --text:#182033; --muted:#5b6785; }
+}
+*{box-sizing:border-box;}
+html{scroll-padding-top:env(safe-area-inset-top,0px);}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;min-height:100%;}
+.wrap{max-width:1000px;margin:0 auto;padding:16px 14px 60px;}
+h1{font-size:1.3rem;margin:4px 0 2px;}
+.sub{color:var(--muted);font-size:.85rem;margin-bottom:14px;}
+.tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:14px;position:sticky;top:env(safe-area-inset-top,0px);background:var(--bg);z-index:5;}
+.tab{flex:0 0 auto;padding:8px 14px;border-radius:20px;background:var(--panel);border:1px solid var(--border);color:var(--muted);font-size:.85rem;cursor:pointer;white-space:nowrap;}
+.tab.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:14px;}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:8px;}
+.stat{background:var(--panel2);border-radius:10px;padding:8px;text-align:center;}
+.stat b{display:block;font-size:1.05rem;}
+.stat span{font-size:.68rem;color:var(--muted);text-transform:uppercase;}
+input,select{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:.95rem;}
+label{font-size:.75rem;color:var(--muted);display:block;margin-bottom:4px;}
+.row{display:flex;gap:10px;flex-wrap:wrap;}
+.row>div{flex:1;min-width:120px;}
+button{cursor:pointer;border:none;border-radius:10px;padding:10px 16px;font-size:.9rem;font-weight:600;}
+.btn-primary{background:var(--accent);color:#fff;}
+.btn-mine{background:var(--good);color:#08210f;}
+.btn-them{background:var(--panel2);color:var(--text);border:1px solid var(--border);}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border);}
+.pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:700;letter-spacing:.02em;}
+.pill-buy{background:rgba(46,204,113,.15);color:var(--good);}
+.pill-consider{background:rgba(245,166,35,.15);color:var(--warn);}
+.pill-pass{background:rgba(255,92,92,.15);color:var(--bad);}
+.verdict{font-size:1.4rem;font-weight:800;margin:6px 0 2px;}
+.reasons{margin:8px 0 0;padding-left:18px;font-size:.85rem;color:var(--muted);}
+.reasons li{margin-bottom:3px;}
+table{width:100%;border-collapse:collapse;font-size:.85rem;}
+th,td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--border);}
+th{color:var(--muted);font-weight:600;font-size:.72rem;text-transform:uppercase;}
+tr.sold{opacity:.35;text-decoration:line-through;}
+.name{font-weight:600;}
+.muted{color:var(--muted);}
+.small{font-size:.78rem;}
+.list-scroll{max-height:420px;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+.teamcard{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);}
+.teamcard:last-child{border-bottom:none;}
+.badge{background:var(--panel2);border-radius:8px;padding:4px 8px;font-size:.75rem;}
+.overflow-x{overflow-x:auto;}
+.flex-between{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
+.results{position:absolute;background:var(--panel);border:1px solid var(--border);border-radius:10px;margin-top:4px;max-height:260px;overflow-y:auto;width:100%;z-index:10;}
+.results div{padding:9px 12px;border-bottom:1px solid var(--border);cursor:pointer;font-size:.88rem;}
+.results div:hover{background:var(--panel2);}
+.rel{position:relative;}
+.warnbanner{background:rgba(245,166,35,.12);border:1px solid var(--warn);color:var(--warn);padding:8px 12px;border-radius:10px;font-size:.8rem;margin-bottom:10px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>⚽ Moneyball Auction Assistant</h1>
+  <div class="sub">FIFA23 player pool · Round 2 Bid Maestro rules built in</div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="advisor">Bid Advisor</div>
+    <div class="tab" data-tab="best">Best Available</div>
+    <div class="tab" data-tab="squad">My Squad</div>
+    <div class="tab" data-tab="teams">All Teams</div>
+    <div class="tab" data-tab="setup">Setup</div>
+  </div>
+
+  <div id="tab-advisor" class="tabpane">
+    <div class="card rel">
+      <label>Search player being auctioned</label>
+      <input id="searchBox" placeholder="Type a player name...">
+      <div id="searchResults" class="results" style="display:none;"></div>
+    </div>
+    <div id="advisorOut"></div>
+  </div>
+
+  <div id="tab-best" class="tabpane" style="display:none;">
+    <div class="card">
+      <div class="row">
+        <div><label>Position group</label>
+          <select id="bestType"><option value="">All</option><option>Forwards</option><option>Midfield</option><option>Defender</option><option>Goalkeeper</option></select>
+        </div>
+        <div><label>Sort by</label>
+          <select id="bestSort"><option value="value">Best value (OVR/Price)</option><option value="ovr">Overall rating</option><option value="base">Base price</option></select>
+        </div>
+        <div><label>Show</label>
+          <select id="bestAvail"><option value="unsold">Unsold only</option><option value="all">All players</option></select>
+        </div>
+      </div>
+    </div>
+    <div class="card list-scroll"><table><thead><tr><th>Player</th><th>Pos</th><th>OVR</th><th>Base</th><th>Value</th><th></th></tr></thead><tbody id="bestBody"></tbody></table></div>
+  </div>
+
+  <div id="tab-squad" class="tabpane" style="display:none;">
+    <div class="card" id="squadSummary"></div>
+    <div class="card">
+      <div class="flex-between"><b>My roster</b><span class="small muted" id="squadCount"></span></div>
+      <div class="overflow-x"><table><thead><tr><th>Player</th><th>Type</th><th>Pos</th><th>OVR</th><th>Price</th><th></th></tr></thead><tbody id="squadBody"></tbody></table></div>
+    </div>
+  </div>
+
+  <div id="tab-teams" class="tabpane" style="display:none;">
+    <div class="card" id="teamsList"></div>
+    <div class="card">
+      <div class="flex-between"><b>Full auction log</b><button class="btn-ghost" id="clearLog">Reset all data</button></div>
+      <div class="overflow-x list-scroll"><table><thead><tr><th>Player</th><th>Team</th><th>Price</th><th></th></tr></thead><tbody id="logBody"></tbody></table></div>
+    </div>
+  </div>
+
+  <div id="tab-setup" class="tabpane" style="display:none;">
+    <div class="card">
+      <label>Number of teams</label>
+      <input id="numTeams" type="number" min="2" max="16" value="10">
+      <div style="height:10px"></div>
+      <label>Starting purse per team (crores)</label>
+      <input id="startPurse" type="number" value="900">
+      <div style="height:10px"></div>
+      <label>Which team is "mine"?</label>
+      <select id="myTeamSel"></select>
+      <div style="height:12px"></div>
+      <button class="btn-primary" id="applySetup">Apply setup</button>
+      <div style="height:6px"></div>
+      <div class="small muted">Squad rules: 2-4 Forwards · 2-5 Midfielders · 3-5 Defenders · 1-2 Goalkeepers · 11-16 players total. Increment: base-30cr → +1cr, 30-50cr → +2cr, 50-100cr → +5cr, 100cr+ → +10cr.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const PLAYERS = [{"id": 1, "name": "Kevin De Bruyne", "type": "Midfield", "pos": "CM", "club": "Manchester City", "ovr": 91, "base": 40, "nat": "Belgium", "age": 31, "pace": 74, "shoot": 88, "pass_": 93, "drib": 87, "def_": 64, "phys": 77}, {"id": 2, "name": "Casemiro", "type": "Midfield", "pos": "CDM", "club": "Manchester United", "ovr": 89, "base": 40, "nat": "Brazil", "age": 30, "pace": 63, "shoot": 73, "pass_": 75, "drib": 72, "def_": 87, "phys": 90}, {"id": 3, "name": "Luka Modric", "type": "Midfield", "pos": "CM", "club": "Real Madrid CF", "ovr": 88, "base": 40, "nat": "Croatia", "age": 36, "pace": 73, "shoot": 76, "pass_": 89, "drib": 88, "def_": 72, "phys": 66}, {"id": 4, "name": "Toni Kroos", "type": "Midfield", "pos": "CM", "club": "Real Madrid CF", "ovr": 88, "base": 40, "nat": "Germany", "age": 32, "pace": 53, "shoot": 81, "pass_": 90, "drib": 81, "def_": 71, "phys": 68}, {"id": 5, "name": "Bernardo Silva", "type": "Midfield", "pos": "CM", "club": "Manchester City", "ovr": 88, "base": 40, "nat": "Portugal", "age": 27, "pace": 77, "shoot": 78, "pass_": 84, "drib": 92, "def_": 61, "phys": 68}, {"id": 6, "name": "Frenkie de Jong", "type": "Midfield", "pos": "CM", "club": "FC Barcelona", "ovr": 87, "base": 30, "nat": "Netherlands", "age": 25, "pace": 82, "shoot": 69, "pass_": 86, "drib": 87, "def_": 77, "phys": 78}, {"id": 7, "name": "Leon Goretzka", "type": "Midfield", "pos": "CM", "club": "FC Bayern M\u00fcnchen", "ovr": 87, "base": 30, "nat": "Germany", "age": 27, "pace": 78, "shoot": 82, "pass_": 82, "drib": 83, "def_": 81, "phys": 86}, {"id": 8, "name": "Verratti", "type": "Midfield", "pos": "CM", "club": "Paris Saint-Germain", "ovr": 87, "base": 30, "nat": "Italy", "age": 29, "pace": 60, "shoot": 61, "pass_": 87, "drib": 91, "def_": 79, "phys": 66}, {"id": 9, "name": "Bruno Fernandes", "type": "Midfield", "pos": "CAM ", "club": "Manchester United", "ovr": 86, "base": 30, "nat": "Portugal", "age": 27, "pace": 72, "shoot": 86, "pass_": 88, "drib": 81, "def_": 67, "phys": 76}, {"id": 10, "name": "Jude Bellingham", "type": "Midfield", "pos": "CM", "club": "Borussia Dortmund", "ovr": 86, "base": 30, "nat": "England", "age": 19, "pace": 75, "shoot": 75, "pass_": 78, "drib": 84, "def_": 77, "phys": 80}, {"id": 11, "name": "Federico Valverde", "type": "Midfield", "pos": "CM", "club": "Real Madrid CF", "ovr": 86, "base": 30, "nat": "Uruguay", "age": 23, "pace": 87, "shoot": 74, "pass_": 80, "drib": 79, "def_": 78, "phys": 80}, {"id": 12, "name": "Fabinho", "type": "Midfield", "pos": "CDM", "club": "Liverpool", "ovr": 86, "base": 30, "nat": "Brazil", "age": 28, "pace": 66, "shoot": 69, "pass_": 78, "drib": 77, "def_": 86, "phys": 83}, {"id": 13, "name": "Nicol\u00f2 Barella", "type": "Midfield", "pos": "CM", "club": "Inter", "ovr": 86, "base": 30, "nat": "Italy", "age": 25, "pace": 79, "shoot": 76, "pass_": 83, "drib": 84, "def_": 77, "phys": 81}, {"id": 14, "name": "Milinkovic Savic", "type": "Midfield", "pos": "CM", "club": "Torino F.C.", "ovr": 86, "base": 30, "nat": "Serbia", "age": 25, "pace": 73, "shoot": 71, "pass_": 78, "drib": 73, "def_": 43, "phys": 74}, {"id": 15, "name": "Thiago Alcantara", "type": "Midfield", "pos": "CDM", "club": "Liverpool", "ovr": 86, "base": 30, "nat": "Spain", "age": 31, "pace": 61, "shoot": 72, "pass_": 87, "drib": 90, "def_": 72, "phys": 69}, {"id": 16, "name": "Thomas Muller", "type": "Midfield", "pos": "CM", "club": "FC Bayern M\u00fcnchen", "ovr": 85, "base": 30, "nat": "Germany", "age": 32, "pace": 69, "shoot": 84, "pass_": 83, "drib": 80, "def_": 56, "phys": 71}, {"id": 17, "name": "Ilkay Gundogan", "type": "Midfield", "pos": "CM", "club": "Manchester City", "ovr": 85, "base": 30, "nat": "Germany", "age": 31, "pace": 64, "shoot": 80, "pass_": 85, "drib": 85, "def_": 72, "phys": 72}, {"id": 18, "name": "Marco Reus", "type": "Midfield", "pos": "CM", "club": "Borussia Dortmund", "ovr": 85, "base": 30, "nat": "Germany", "age": 33, "pace": 70, "shoot": 84, "pass_": 84, "drib": 85, "def_": 53, "phys": 65}, {"id": 19, "name": "Jorginho", "type": "Midfield", "pos": "CDM", "club": "Chelsea", "ovr": 85, "base": 30, "nat": "Italy", "age": 30, "pace": 54, "shoot": 67, "pass_": 86, "drib": 81, "def_": 73, "phys": 73}, {"id": 20, "name": "Pedri", "type": "Midfield", "pos": "CM", "club": "FC Barcelona", "ovr": 85, "base": 30, "nat": "Spain", "age": 19, "pace": 79, "shoot": 67, "pass_": 81, "drib": 87, "def_": 68, "phys": 73}, {"id": 21, "name": "Martin Odegard", "type": "Midfield", "pos": "CAM", "club": "Arsenal", "ovr": 85, "base": 30, "nat": "Norway", "age": 23, "pace": 76, "shoot": 75, "pass_": 86, "drib": 84, "def_": 58, "phys": 63}, {"id": 22, "name": "Florian Writz", "type": "Midfield", "pos": "CAM", "club": "Bayer 04 Leverkusen", "ovr": 85, "base": 30, "nat": "Germany", "age": 19, "pace": 78, "shoot": 73, "pass_": 80, "drib": 86, "def_": 51, "phys": 60}, {"id": 23, "name": "James Maddison", "type": "Midfield", "pos": "CAM", "club": "Leicester City", "ovr": 84, "base": 30, "nat": "England", "age": 25, "pace": 73, "shoot": 78, "pass_": 84, "drib": 85, "def_": 54, "phys": 62}, {"id": 24, "name": "Declan Rice", "type": "Midfield", "pos": "CDM", "club": "West Ham United", "ovr": 84, "base": 30, "nat": "England", "age": 23, "pace": 71, "shoot": 64, "pass_": 74, "drib": 76, "def_": 82, "phys": 83}, {"id": 25, "name": "Youri Tielemans", "type": "Midfield", "pos": "CM", "club": "Leicester City", "ovr": 84, "base": 30, "nat": "Belgium", "age": 25, "pace": 56, "shoot": 80, "pass_": 86, "drib": 81, "def_": 70, "phys": 73}, {"id": 26, "name": "Marcos Llorente", "type": "Midfield", "pos": "CM", "club": "Atl\u00e9tico de Madrid", "ovr": 84, "base": 30, "nat": "Spain", "age": 27, "pace": 88, "shoot": 79, "pass_": 81, "drib": 82, "def_": 78, "phys": 81}, {"id": 27, "name": "Thomas Partey", "type": "Midfield", "pos": "CDM", "club": "Arsenal", "ovr": 84, "base": 30, "nat": "Ghana", "age": 29, "pace": 65, "shoot": 71, "pass_": 81, "drib": 80, "def_": 80, "phys": 83}, {"id": 28, "name": "Sandro Tonali", "type": "Midfield", "pos": "CM", "club": "AC Milan", "ovr": 84, "base": 30, "nat": "Italy", "age": 22, "pace": 81, "shoot": 73, "pass_": 81, "drib": 79, "def_": 79, "phys": 82}, {"id": 29, "name": "Hakan Calhanoglu", "type": "Midfield", "pos": "CAM", "club": "Inter", "ovr": 84, "base": 30, "nat": "Turkey", "age": 28, "pace": 67, "shoot": 80, "pass_": 85, "drib": 86, "def_": 68, "phys": 64}, {"id": 30, "name": "Pierre-Emile Hojbjerg", "type": "Midfield", "pos": "CDM", "club": "Tottenham Hotspur", "ovr": 84, "base": 30, "nat": "Denmark", "age": 26, "pace": 55, "shoot": 73, "pass_": 77, "drib": 77, "def_": 80, "phys": 82}, {"id": 31, "name": "Maddison", "type": "Midfield", "pos": "CAM", "club": "Leicester City", "ovr": 84, "base": 30, "nat": "England", "age": 25, "pace": 73, "shoot": 78, "pass_": 84, "drib": 85, "def_": 54, "phys": 62}, {"id": 32, "name": "De Paul", "type": "Midfield", "pos": "CM", "club": "Atl\u00e9tico de Madrid", "ovr": 84, "base": 30, "nat": "Argentina", "age": 28, "pace": 78, "shoot": 77, "pass_": 83, "drib": 82, "def_": 75, "phys": 81}, {"id": 33, "name": "Carrasco", "type": "Midfield", "pos": "LM", "club": "Atl\u00e9tico de Madrid", "ovr": 84, "base": 30, "nat": "Belgium", "age": 28, "pace": 89, "shoot": 82, "pass_": 80, "drib": 87, "def_": 53, "phys": 67}, {"id": 34, "name": "Bruno Guimaraes", "type": "Midfield", "pos": "CDM", "club": "Newcastle United", "ovr": 83, "base": 20, "nat": "Brazil", "age": 24, "pace": 69, "shoot": 67, "pass_": 79, "drib": 81, "def_": 76, "phys": 77}, {"id": 35, "name": "Rodri", "type": "Midfield", "pos": "CDM", "club": "Manchester City", "ovr": 83, "base": 20, "nat": "Spain", "age": 26, "pace": 58, "shoot": 72, "pass_": 78, "drib": 79, "def_": 83, "phys": 84}, {"id": 36, "name": "Mason Mount", "type": "Midfield", "pos": "CAM", "club": "Chelsea", "ovr": 83, "base": 20, "nat": "England", "age": 23, "pace": 74, "shoot": 81, "pass_": 85, "drib": 82, "def_": 55, "phys": 67}, {"id": 37, "name": "Kai Havertz", "type": "Midfield", "pos": "CAM", "club": "Chelsea", "ovr": 83, "base": 20, "nat": "Germany", "age": 23, "pace": 81, "shoot": 79, "pass_": 79, "drib": 84, "def_": 45, "phys": 66}, {"id": 38, "name": "Mateo Kovacic", "type": "Midfield", "pos": "CM", "club": "Chelsea", "ovr": 83, "base": 20, "nat": "Croatia", "age": 28, "pace": 70, "shoot": 69, "pass_": 83, "drib": 88, "def_": 71, "phys": 71}, {"id": 39, "name": "Thomas Lemar", "type": "Midfield", "pos": "LM", "club": "Atl\u00e9tico de Madrid", "ovr": 83, "base": 20, "nat": "France", "age": 26, "pace": 82, "shoot": 78, "pass_": 83, "drib": 87, "def_": 68, "phys": 64}, {"id": 40, "name": "Piotr Zielinski", "type": "Midfield", "pos": "CAM", "club": "Napoli", "ovr": 83, "base": 20, "nat": "Poland", "age": 28, "pace": 81, "shoot": 77, "pass_": 81, "drib": 86, "def_": 70, "phys": 62}, {"id": 41, "name": "Fabian Ruiz", "type": "Midfield", "pos": "CM", "club": "FC Basel 1893", "ovr": 83, "base": 20, "nat": "Switzerland", "age": 33, "pace": 55, "shoot": 69, "pass_": 70, "drib": 69, "def_": 72, "phys": 73}, {"id": 42, "name": "Aur\u00e9lien Tchouam\u00e9ni", "type": "Midfield", "pos": "CDM", "club": "Real Madrid CF", "ovr": 83, "base": 20, "nat": "France", "age": 22, "pace": 70, "shoot": 70, "pass_": 79, "drib": 78, "def_": 81, "phys": 82}, {"id": 43, "name": "Eriksen", "type": "Midfield", "pos": "CAM", "club": "Molde FK", "ovr": 83, "base": 20, "nat": "Norway", "age": 26, "pace": 69, "shoot": 62, "pass_": 61, "drib": 66, "def_": 36, "phys": 68}, {"id": 44, "name": "Bentancur", "type": "Midfield", "pos": "CM", "club": "Tottenham Hotspur", "ovr": 82, "base": 20, "nat": "Uruguay", "age": 25, "pace": 67, "shoot": 62, "pass_": 79, "drib": 80, "def_": 78, "phys": 77}, {"id": 45, "name": "Koke", "type": "Midfield", "pos": "CM", "club": "Atl\u00e9tico de Madrid", "ovr": 82, "base": 20, "nat": "Spain", "age": 30, "pace": 70, "shoot": 72, "pass_": 84, "drib": 79, "def_": 78, "phys": 79}, {"id": 46, "name": "Xhaka", "type": "Midfield", "pos": "CM", "club": "FC Basel 1893", "ovr": 82, "base": 20, "nat": "Albania", "age": 31, "pace": 70, "shoot": 62, "pass_": 67, "drib": 66, "def_": 65, "phys": 79}, {"id": 47, "name": "Enzo Fernandez", "type": "Midfield", "pos": "CDM", "club": "SL Benfica", "ovr": 81, "base": 20, "nat": "Argentina", "age": 21, "pace": 74, "shoot": 71, "pass_": 76, "drib": 78, "def_": 72, "phys": 80}, {"id": 48, "name": "Marcel Sabitzer", "type": "Midfield", "pos": "CM", "club": "FC Bayern M\u00fcnchen", "ovr": 81, "base": 20, "nat": "Austria", "age": 28, "pace": 72, "shoot": 81, "pass_": 79, "drib": 79, "def_": 66, "phys": 76}, {"id": 49, "name": "Lo Celso", "type": "Midfield", "pos": "CAM", "club": "Villarreal CF", "ovr": 81, "base": 20, "nat": "Argentina", "age": 26, "pace": 71, "shoot": 75, "pass_": 83, "drib": 84, "def_": 68, "phys": 72}, {"id": 50, "name": "Ugarte", "type": "Midfield", "pos": "CDM", "club": "Sporting CP", "ovr": 81, "base": 20, "nat": "Uruguay", "age": 21, "pace": 72, "shoot": 63, "pass_": 71, "drib": 77, "def_": 73, "phys": 76}, {"id": 51, "name": "Camavinga", "type": "Midfield", "pos": "CM", "club": "Real Madrid CF", "ovr": 80, "base": 20, "nat": "France", "age": 19, "pace": 76, "shoot": 66, "pass_": 78, "drib": 81, "def_": 76, "phys": 78}, {"id": 52, "name": "Gavi", "type": "Midfield", "pos": "CM", "club": "FC Barcelona", "ovr": 80, "base": 20, "nat": "Spain", "age": 17, "pace": 76, "shoot": 64, "pass_": 77, "drib": 83, "def_": 65, "phys": 67}, {"id": 53, "name": "Alexis Mac Allister", "type": "Midfield", "pos": "CM", "club": "Brighton & Hove Albion", "ovr": 78, "base": 20, "nat": "Argentina", "age": 23, "pace": 69, "shoot": 77, "pass_": 78, "drib": 75, "def_": 56, "phys": 62}, {"id": 54, "name": "N'golo Kante", "type": "Midfield", "pos": "CDM", "club": "Chelsea", "ovr": 88, "base": 40, "nat": "France", "age": 31, "pace": 72, "shoot": 66, "pass_": 74, "drib": 81, "def_": 87, "phys": 82}, {"id": 55, "name": "Daniel Parejo Munoz", "type": "Midfield", "pos": "CM", "club": "Villarreal CF", "ovr": 86, "base": 30, "nat": "Spain", "age": 33, "pace": 50, "shoot": 83, "pass_": 90, "drib": 80, "def_": 71, "phys": 68}, {"id": 56, "name": "Paul Pogba", "type": "Midfield", "pos": "CM", "club": "Juventus", "ovr": 85, "base": 30, "nat": "France", "age": 29, "pace": 67, "shoot": 80, "pass_": 85, "drib": 85, "def_": 62, "phys": 80}, {"id": 57, "name": "Musiala", "type": "Midfield", "pos": "CAM", "club": "FC Bayern M\u00fcnchen", "ovr": 83, "base": 20, "nat": "Germany", "age": 19, "pace": 76, "shoot": 73, "pass_": 75, "drib": 87, "def_": 63, "phys": 60}, {"id": 58, "name": "Thibaut Courtois", "type": "Goalkeeper", "pos": "GK", "club": "Real Madrid CF", "ovr": 90, "base": 40, "nat": "Belgium", "age": 30, "pace": 84, "shoot": 89, "pass_": 75, "drib": 90, "def_": 46, "phys": 89}, {"id": 59, "name": "Allison", "type": "Goalkeeper", "pos": "GK", "club": "\u00dcmraniyespor", "ovr": 89, "base": 40, "nat": "Brazil", "age": 31, "pace": 71, "shoot": 35, "pass_": 49, "drib": 58, "def_": 69, "phys": 70}, {"id": 60, "name": "Ederson", "type": "Goalkeeper", "pos": "GK", "club": "Manchester City", "ovr": 89, "base": 40, "nat": "Brazil", "age": 28, "pace": 87, "shoot": 82, "pass_": 93, "drib": 88, "def_": 64, "phys": 88}, {"id": 61, "name": "Manuel Neuer", "type": "Goalkeeper", "pos": "GK", "club": "FC Bayern M\u00fcnchen", "ovr": 89, "base": 40, "nat": "Germany", "age": 36, "pace": 87, "shoot": 88, "pass_": 91, "drib": 88, "def_": 56, "phys": 91}, {"id": 62, "name": "Jan Oblak", "type": "Goalkeeper", "pos": "GK", "club": "Atl\u00e9tico de Madrid", "ovr": 88, "base": 40, "nat": "Slovenia", "age": 29, "pace": 86, "shoot": 90, "pass_": 78, "drib": 89, "def_": 49, "phys": 87}, {"id": 63, "name": "Ter Stegen", "type": "Goalkeeper", "pos": "GK", "club": "FC Barcelona", "ovr": 88, "base": 40, "nat": "Germany", "age": 30, "pace": 86, "shoot": 85, "pass_": 87, "drib": 90, "def_": 47, "phys": 85}, {"id": 64, "name": "Gianluigi Donnarumma", "type": "Goalkeeper", "pos": "GK", "club": "Paris Saint-Germain", "ovr": 88, "base": 40, "nat": "Italy", "age": 23, "pace": 90, "shoot": 83, "pass_": 79, "drib": 89, "def_": 52, "phys": 85}, {"id": 65, "name": "Mike Maignan", "type": "Goalkeeper", "pos": "GK", "club": "AC Milan", "ovr": 87, "base": 30, "nat": "France", "age": 26, "pace": 85, "shoot": 82, "pass_": 85, "drib": 89, "def_": 51, "phys": 85}, {"id": 66, "name": "Kevin Trapp", "type": "Goalkeeper", "pos": "GK", "club": "Eintracht Frankfurt", "ovr": 86, "base": 30, "nat": "Germany", "age": 31, "pace": 84, "shoot": 82, "pass_": 79, "drib": 87, "def_": 46, "phys": 85}, {"id": 67, "name": "Wojciech Szczeny", "type": "Goalkeeper", "pos": "GK", "club": "Juventus", "ovr": 86, "base": 30, "nat": "Poland", "age": 32, "pace": 86, "shoot": 81, "pass_": 73, "drib": 87, "def_": 49, "phys": 86}, {"id": 68, "name": "Emiliano Martinez", "type": "Goalkeeper", "pos": "GK", "club": "Aston Villa", "ovr": 85, "base": 30, "nat": "Argentina", "age": 29, "pace": 85, "shoot": 83, "pass_": 82, "drib": 85, "def_": 58, "phys": 83}, {"id": 69, "name": "Yan Sommer", "type": "Goalkeeper", "pos": "GK", "club": "Borussia M\u00f6nchengladbach", "ovr": 85, "base": 30, "nat": "Switzerland", "age": 33, "pace": 78, "shoot": 81, "pass_": 82, "drib": 90, "def_": 50, "phys": 86}, {"id": 70, "name": "Llories", "type": "Goalkeeper", "pos": "GK", "club": "Tottenham Hotspur", "ovr": 85, "base": 30, "nat": "France", "age": 35, "pace": 88, "shoot": 83, "pass_": 74, "drib": 88, "def_": 61, "phys": 84}, {"id": 71, "name": "Kobel", "type": "Goalkeeper", "pos": "GK", "club": "Borussia Dortmund", "ovr": 85, "base": 30, "nat": "Switzerland", "age": 24, "pace": 84, "shoot": 80, "pass_": 74, "drib": 88, "def_": 43, "phys": 79}, {"id": 72, "name": "Nick Pope", "type": "Goalkeeper", "pos": "GK", "club": "Newcastle United", "ovr": 83, "base": 20, "nat": "England", "age": 30, "pace": 80, "shoot": 82, "pass_": 75, "drib": 83, "def_": 49, "phys": 80}, {"id": 73, "name": "Unai Simon", "type": "Goalkeeper", "pos": "GK", "club": "Athletic Club de Bilbao", "ovr": 83, "base": 20, "nat": "Spain", "age": 25, "pace": 82, "shoot": 79, "pass_": 77, "drib": 85, "def_": 49, "phys": 85}, {"id": 74, "name": "Aaron Ramsdale", "type": "Goalkeeper", "pos": "GK", "club": "Arsenal", "ovr": 82, "base": 20, "nat": "England", "age": 24, "pace": 83, "shoot": 77, "pass_": 85, "drib": 84, "def_": 48, "phys": 78}, {"id": 75, "name": "Jordan Pickford", "type": "Goalkeeper", "pos": "GK", "club": "Everton", "ovr": 82, "base": 20, "nat": "England", "age": 28, "pace": 84, "shoot": 77, "pass_": 87, "drib": 87, "def_": 51, "phys": 80}, {"id": 76, "name": "Kepa Arrizabalaga", "type": "Goalkeeper", "pos": "GK", "club": "Chelsea", "ovr": 81, "base": 20, "nat": "Spain", "age": 27, "pace": 79, "shoot": 78, "pass_": 85, "drib": 82, "def_": 34, "phys": 77}, {"id": 77, "name": "David De Gea Quintana", "type": "Goalkeeper", "pos": "GK", "club": "Manchester United", "ovr": 87, "base": 30, "nat": "Spain", "age": 31, "pace": 88, "shoot": 80, "pass_": 76, "drib": 89, "def_": 51, "phys": 84}, {"id": 78, "name": "Keylor navas", "type": "Goalkeeper", "pos": "GK", "club": "Paris Saint-Germain", "ovr": 87, "base": 30, "nat": "Costa Rica", "age": 35, "pace": 89, "shoot": 84, "pass_": 75, "drib": 89, "def_": 54, "phys": 87}, {"id": 79, "name": "Peter Gulacsy", "type": "Goalkeeper", "pos": "GK", "club": "RB Leipzig", "ovr": 85, "base": 30, "nat": "Hungary", "age": 32, "pace": 85, "shoot": 84, "pass_": 76, "drib": 85, "def_": 43, "phys": 83}, {"id": 80, "name": "Yassine bounou", "type": "Goalkeeper", "pos": "GK", "club": "Sevilla FC", "ovr": 85, "base": 30, "nat": "Morocco", "age": 31, "pace": 84, "shoot": 81, "pass_": 76, "drib": 86, "def_": 36, "phys": 84}, {"id": 81, "name": "Koen Casteels", "type": "Goalkeeper", "pos": "GK", "club": "VfL Wolfsburg", "ovr": 84, "base": 30, "nat": "Belgium", "age": 30, "pace": 84, "shoot": 82, "pass_": 79, "drib": 86, "def_": 45, "phys": 84}, {"id": 82, "name": "Kylian Mbappe", "type": "Forwards", "pos": "ST", "club": "Paris Saint-Germain", "ovr": 91, "base": 40, "nat": "France", "age": 23, "pace": 97, "shoot": 89, "pass_": 80, "drib": 92, "def_": 36, "phys": 76}, {"id": 83, "name": "Robert Lewandowski", "type": "Forwards", "pos": "ST", "club": "FC Barcelona", "ovr": 91, "base": 40, "nat": "Poland", "age": 33, "pace": 75, "shoot": 91, "pass_": 79, "drib": 86, "def_": 44, "phys": 83}, {"id": 84, "name": "Lionel Messi", "type": "Forwards", "pos": "RW", "club": "Paris Saint-Germain", "ovr": 91, "base": 40, "nat": "Argentina", "age": 35, "pace": 81, "shoot": 89, "pass_": 90, "drib": 94, "def_": 34, "phys": 64}, {"id": 85, "name": "Karim Benzema", "type": "Forwards", "pos": "CF", "club": "Real Madrid CF", "ovr": 91, "base": 40, "nat": "France", "age": 34, "pace": 80, "shoot": 88, "pass_": 83, "drib": 87, "def_": 39, "phys": 78}, {"id": 86, "name": "Mohamed Salah", "type": "Forwards", "pos": "RW", "club": "Liverpool", "ovr": 89, "base": 40, "nat": "Egypt", "age": 30, "pace": 90, "shoot": 89, "pass_": 82, "drib": 90, "def_": 45, "phys": 75}, {"id": 87, "name": "Harry Kane", "type": "Forwards", "pos": "ST", "club": "Tottenham Hotspur", "ovr": 89, "base": 40, "nat": "England", "age": 28, "pace": 68, "shoot": 91, "pass_": 83, "drib": 82, "def_": 47, "phys": 82}, {"id": 88, "name": "Erling Haaland", "type": "Forwards", "pos": "ST", "club": "Manchester City", "ovr": 89, "base": 40, "nat": "Norway", "age": 21, "pace": 89, "shoot": 91, "pass_": 65, "drib": 80, "def_": 49, "phys": 87}, {"id": 89, "name": "Neymar", "type": "Forwards", "pos": "LW", "club": "Paris Saint-Germain", "ovr": 89, "base": 40, "nat": "Brazil", "age": 30, "pace": 87, "shoot": 83, "pass_": 85, "drib": 93, "def_": 37, "phys": 61}, {"id": 90, "name": "Sadio Mane", "type": "Forwards", "pos": "CF", "club": "FC Bayern M\u00fcnchen", "ovr": 89, "base": 40, "nat": "Senegal", "age": 30, "pace": 90, "shoot": 83, "pass_": 80, "drib": 88, "def_": 44, "phys": 77}, {"id": 91, "name": "Heun-min Son", "type": "Forwards", "pos": "LW", "club": "Tottenham Hotspur", "ovr": 88, "base": 40, "nat": "Korea Republic", "age": 29, "pace": 88, "shoot": 89, "pass_": 82, "drib": 86, "def_": 42, "phys": 69}, {"id": 92, "name": "Cristiano Ronaldo", "type": "Forwards", "pos": "ST", "club": "Manchester United", "ovr": 88, "base": 40, "nat": "Portugal", "age": 37, "pace": 81, "shoot": 92, "pass_": 78, "drib": 85, "def_": 34, "phys": 75}, {"id": 93, "name": "Paulo Dybala", "type": "Forwards", "pos": "CF", "club": "Roma", "ovr": 86, "base": 30, "nat": "Argentina", "age": 28, "pace": 80, "shoot": 85, "pass_": 85, "drib": 90, "def_": 40, "phys": 59}, {"id": 94, "name": "Vinicius Junior", "type": "Forwards", "pos": "LW", "club": "Real Madrid CF", "ovr": 86, "base": 30, "nat": "Brazil", "age": 21, "pace": 95, "shoot": 79, "pass_": 74, "drib": 90, "def_": 29, "phys": 67}, {"id": 95, "name": "Ciro Immobile", "type": "Forwards", "pos": "ST", "club": "Lazio", "ovr": 86, "base": 30, "nat": "Italy", "age": 32, "pace": 85, "shoot": 87, "pass_": 68, "drib": 80, "def_": 39, "phys": 75}, {"id": 96, "name": "Lautaro Martinez", "type": "Forwards", "pos": "ST", "club": "Inter", "ovr": 86, "base": 30, "nat": "Argentina", "age": 24, "pace": 83, "shoot": 83, "pass_": 72, "drib": 85, "def_": 48, "phys": 84}, {"id": 97, "name": "Phil Foden", "type": "Forwards", "pos": "LW", "club": "Manchester City", "ovr": 85, "base": 30, "nat": "England", "age": 22, "pace": 82, "shoot": 78, "pass_": 81, "drib": 88, "def_": 56, "phys": 60}, {"id": 98, "name": "Raheem Sterling", "type": "Forwards", "pos": "LW", "club": "Chelsea", "ovr": 85, "base": 30, "nat": "England", "age": 27, "pace": 90, "shoot": 80, "pass_": 78, "drib": 86, "def_": 45, "phys": 67}, {"id": 99, "name": "Romelu Lukaku", "type": "Forwards", "pos": "ST", "club": "Inter", "ovr": 85, "base": 30, "nat": "Belgium", "age": 29, "pace": 80, "shoot": 85, "pass_": 75, "drib": 77, "def_": 38, "phys": 82}, {"id": 100, "name": "Diogo Jota", "type": "Forwards", "pos": "CF", "club": "Liverpool", "ovr": 85, "base": 30, "nat": "Portugal", "age": 25, "pace": 85, "shoot": 83, "pass_": 75, "drib": 85, "def_": 57, "phys": 77}, {"id": 101, "name": "Antoine Griezmann", "type": "Forwards", "pos": "ST", "club": "Atl\u00e9tico de Madrid", "ovr": 85, "base": 30, "nat": "France", "age": 31, "pace": 80, "shoot": 82, "pass_": 83, "drib": 85, "def_": 52, "phys": 72}, {"id": 102, "name": "Memphis Depay", "type": "Forwards", "pos": "CF", "club": "FC Barcelona", "ovr": 85, "base": 30, "nat": "Netherlands", "age": 28, "pace": 83, "shoot": 84, "pass_": 82, "drib": 86, "def_": 30, "phys": 79}, {"id": 103, "name": "Coman", "type": "Forwards", "pos": "LM", "club": "CS Mioveni", "ovr": 85, "base": 30, "nat": "Romania", "age": 20, "pace": 73, "shoot": 52, "pass_": 30, "drib": 47, "def_": 18, "phys": 47}, {"id": 104, "name": "Rafael Leao", "type": "Forwards", "pos": "LW", "club": "AC Milan", "ovr": 84, "base": 30, "nat": "Portugal", "age": 23, "pace": 91, "shoot": 77, "pass_": 73, "drib": 86, "def_": 27, "phys": 74}, {"id": 105, "name": "Chisea", "type": "Forwards", "pos": "LM", "club": "SD Eibar", "ovr": 84, "base": 30, "nat": "Spain", "age": 30, "pace": 56, "shoot": 59, "pass_": 58, "drib": 60, "def_": 71, "phys": 72}, {"id": 106, "name": "Marcus Rashford", "type": "Forwards", "pos": "LW", "club": "Manchester United", "ovr": 84, "base": 30, "nat": "England", "age": 24, "pace": 87, "shoot": 82, "pass_": 75, "drib": 81, "def_": 41, "phys": 71}, {"id": 107, "name": "Dusan Vlahovic", "type": "Forwards", "pos": "ST", "club": "Juventus", "ovr": 84, "base": 30, "nat": "Serbia", "age": 22, "pace": 80, "shoot": 85, "pass_": 66, "drib": 78, "def_": 28, "phys": 79}, {"id": 108, "name": "Jack Grealish", "type": "Forwards", "pos": "LW", "club": "Manchester City", "ovr": 84, "base": 30, "nat": "England", "age": 26, "pace": 76, "shoot": 76, "pass_": 83, "drib": 87, "def_": 46, "phys": 69}, {"id": 109, "name": "Leroy Sane", "type": "Forwards", "pos": "RM", "club": "FC Bayern M\u00fcnchen", "ovr": 84, "base": 30, "nat": "Germany", "age": 26, "pace": 88, "shoot": 81, "pass_": 80, "drib": 85, "def_": 38, "phys": 66}, {"id": 110, "name": "Luis D\u00edaz", "type": "Forwards", "pos": "LM", "club": "Liverpool", "ovr": 84, "base": 30, "nat": "Colombia", "age": 25, "pace": 91, "shoot": 80, "pass_": 75, "drib": 87, "def_": 34, "phys": 73}, {"id": 111, "name": "Ousmane Dembele", "type": "Forwards", "pos": "RW", "club": "FC Barcelona", "ovr": 84, "base": 30, "nat": "France", "age": 25, "pace": 93, "shoot": 77, "pass_": 79, "drib": 87, "def_": 36, "phys": 56}, {"id": 112, "name": "Bukayo Saka", "type": "Forwards", "pos": "RW", "club": "Arsenal", "ovr": 84, "base": 30, "nat": "England", "age": 20, "pace": 84, "shoot": 74, "pass_": 78, "drib": 83, "def_": 65, "phys": 65}, {"id": 113, "name": "Jadon Sancho", "type": "Forwards", "pos": "LW", "club": "Manchester United", "ovr": 83, "base": 20, "nat": "England", "age": 22, "pace": 81, "shoot": 74, "pass_": 81, "drib": 89, "def_": 36, "phys": 59}, {"id": 114, "name": "Cody Gakpo", "type": "Forwards", "pos": "CF", "club": "PSV", "ovr": 83, "base": 20, "nat": "Netherlands", "age": 23, "pace": 87, "shoot": 82, "pass_": 77, "drib": 84, "def_": 41, "phys": 74}, {"id": 115, "name": "Angel Di Maria", "type": "Forwards", "pos": "CF", "club": "Juventus", "ovr": 83, "base": 20, "nat": "Argentina", "age": 34, "pace": 79, "shoot": 79, "pass_": 84, "drib": 87, "def_": 48, "phys": 67}, {"id": 116, "name": "Joao Felix", "type": "Forwards", "pos": "CF", "club": "Atl\u00e9tico de Madrid", "ovr": 83, "base": 20, "nat": "Portugal", "age": 22, "pace": 83, "shoot": 80, "pass_": 81, "drib": 88, "def_": 40, "phys": 67}, {"id": 117, "name": "Raphinha", "type": "Forwards", "pos": "RW", "club": "FC Barcelona", "ovr": 83, "base": 20, "nat": "Brazil", "age": 25, "pace": 91, "shoot": 79, "pass_": 77, "drib": 85, "def_": 50, "phys": 73}, {"id": 118, "name": "Asensio", "type": "Forwards", "pos": "RW", "club": "FC Arouca", "ovr": 83, "base": 20, "nat": "Portugal", "age": 32, "pace": 73, "shoot": 67, "pass_": 68, "drib": 72, "def_": 40, "phys": 65}, {"id": 119, "name": "Antony", "type": "Forwards", "pos": "RW", "club": "Manchester United", "ovr": 82, "base": 20, "nat": "Brazil", "age": 22, "pace": 93, "shoot": 74, "pass_": 75, "drib": 86, "def_": 39, "phys": 69}, {"id": 120, "name": "Darwin Nunez", "type": "Forwards", "pos": "ST", "club": "Liverpool", "ovr": 82, "base": 20, "nat": "Uruguay", "age": 23, "pace": 89, "shoot": 82, "pass_": 68, "drib": 77, "def_": 42, "phys": 86}, {"id": 121, "name": "Morata", "type": "Forwards", "pos": "ST", "club": "Atl\u00e9tico de Madrid", "ovr": 82, "base": 20, "nat": "Spain", "age": 29, "pace": 80, "shoot": 78, "pass_": 72, "drib": 78, "def_": 31, "phys": 77}, {"id": 122, "name": "Ferran Torres", "type": "Forwards", "pos": "LW", "club": "FC Barcelona", "ovr": 82, "base": 20, "nat": "Spain", "age": 22, "pace": 84, "shoot": 79, "pass_": 79, "drib": 83, "def_": 35, "phys": 67}, {"id": 123, "name": "Rodrygo", "type": "Forwards", "pos": "RW", "club": "Real Madrid CF", "ovr": 81, "base": 20, "nat": "Brazil", "age": 21, "pace": 88, "shoot": 76, "pass_": 74, "drib": 84, "def_": 32, "phys": 56}, {"id": 124, "name": "Kulusevski", "type": "Forwards", "pos": "RW", "club": "Tottenham Hotspur", "ovr": 81, "base": 20, "nat": "Sweden", "age": 22, "pace": 78, "shoot": 77, "pass_": 79, "drib": 83, "def_": 56, "phys": 76}, {"id": 125, "name": "Joselu", "type": "Forwards", "pos": "ST", "club": "RCD Espanyol de Barcelona", "ovr": 81, "base": 20, "nat": "Spain", "age": 32, "pace": 63, "shoot": 81, "pass_": 69, "drib": 73, "def_": 31, "phys": 76}, {"id": 126, "name": "Julian Alvarez", "type": "Forwards", "pos": "ST", "club": "Manchester City", "ovr": 79, "base": 20, "nat": "Argentina", "age": 22, "pace": 76, "shoot": 80, "pass_": 76, "drib": 83, "def_": 55, "phys": 75}, {"id": 127, "name": "Khvicha Kvaratskhelia", "type": "Forwards", "pos": "LW", "club": "Napoli", "ovr": 79, "base": 20, "nat": "Georgia", "age": 21, "pace": 82, "shoot": 68, "pass_": 71, "drib": 81, "def_": 41, "phys": 66}, {"id": 128, "name": "Christopher Nkunku", "type": "Forwards", "pos": "CF", "club": "RB Leipzig", "ovr": 86, "base": 30, "nat": "France", "age": 24, "pace": 88, "shoot": 81, "pass_": 83, "drib": 88, "def_": 65, "phys": 66}, {"id": 129, "name": "Riyad Mahrez", "type": "Forwards", "pos": "RW", "club": "Manchester City", "ovr": 85, "base": 30, "nat": "Algeria", "age": 31, "pace": 80, "shoot": 83, "pass_": 81, "drib": 90, "def_": 38, "phys": 60}, {"id": 130, "name": "Gerard Moreno", "type": "Forwards", "pos": "ST", "club": "Villarreal CF", "ovr": 85, "base": 30, "nat": "Spain", "age": 30, "pace": 78, "shoot": 86, "pass_": 77, "drib": 83, "def_": 46, "phys": 72}, {"id": 131, "name": "Gabriel Fernando Jesus", "type": "Forwards", "pos": "ST", "club": "Arsenal", "ovr": 84, "base": 30, "nat": "Brazil", "age": 25, "pace": 84, "shoot": 82, "pass_": 74, "drib": 86, "def_": 40, "phys": 74}, {"id": 132, "name": "Virgil van Dijk", "type": "Defender", "pos": "CB", "club": "Liverpool", "ovr": 89, "base": 40, "nat": "Netherlands", "age": 30, "pace": 81, "shoot": 60, "pass_": 71, "drib": 72, "def_": 91, "phys": 86}, {"id": 133, "name": "Joshua Kimmich", "type": "Defender", "pos": "CDM", "club": "FC Bayern M\u00fcnchen", "ovr": 89, "base": 40, "nat": "Germany", "age": 27, "pace": 68, "shoot": 72, "pass_": 87, "drib": 84, "def_": 83, "phys": 79}, {"id": 134, "name": "Marquinhos", "type": "Defender", "pos": "CB", "club": "Paris Saint-Germain", "ovr": 88, "base": 40, "nat": "Brazil", "age": 28, "pace": 79, "shoot": 56, "pass_": 75, "drib": 74, "def_": 89, "phys": 80}, {"id": 135, "name": "Ruben Dias", "type": "Defender", "pos": "CB", "club": "Manchester City", "ovr": 88, "base": 40, "nat": "Portugal", "age": 25, "pace": 63, "shoot": 39, "pass_": 66, "drib": 68, "def_": 88, "phys": 88}, {"id": 136, "name": "Cancelo", "type": "Defender", "pos": "RB", "club": "Manchester City", "ovr": 87, "base": 30, "nat": "Portugal", "age": 28, "pace": 85, "shoot": 73, "pass_": 85, "drib": 85, "def_": 81, "phys": 73}, {"id": 137, "name": "Antonio Rudiger", "type": "Defender", "pos": "CB", "club": "Real Madrid CF", "ovr": 87, "base": 30, "nat": "Germany", "age": 29, "pace": 82, "shoot": 53, "pass_": 71, "drib": 67, "def_": 86, "phys": 85}, {"id": 138, "name": "Andy Robertson", "type": "Defender", "pos": "LB", "club": "Liverpool", "ovr": 87, "base": 30, "nat": "Scotland", "age": 28, "pace": 80, "shoot": 61, "pass_": 81, "drib": 81, "def_": 82, "phys": 76}, {"id": 139, "name": "Trent Alexander-Arnold", "type": "Defender", "pos": "RB", "club": "Liverpool", "ovr": 87, "base": 30, "nat": "England", "age": 23, "pace": 76, "shoot": 69, "pass_": 89, "drib": 80, "def_": 80, "phys": 73}, {"id": 140, "name": "Thiago Silva", "type": "Defender", "pos": "CB", "club": "Chelsea", "ovr": 86, "base": 30, "nat": "Brazil", "age": 37, "pace": 49, "shoot": 54, "pass_": 73, "drib": 72, "def_": 87, "phys": 76}, {"id": 141, "name": "Milan \u0160kriniar", "type": "Defender", "pos": "CB", "club": "Inter", "ovr": 86, "base": 30, "nat": "Slovakia", "age": 27, "pace": 78, "shoot": 41, "pass_": 57, "drib": 69, "def_": 88, "phys": 86}, {"id": 142, "name": "David Alaba", "type": "Defender", "pos": "CB", "club": "Real Madrid CF", "ovr": 86, "base": 30, "nat": "Austria", "age": 30, "pace": 79, "shoot": 71, "pass_": 83, "drib": 80, "def_": 85, "phys": 77}, {"id": 143, "name": "Laporte", "type": "Defender", "pos": "CB", "club": "FC Lorient", "ovr": 86, "base": 30, "nat": "France", "age": 28, "pace": 44, "shoot": 29, "pass_": 45, "drib": 49, "def_": 73, "phys": 81}, {"id": 144, "name": "Niklas S\u00fcle", "type": "Defender", "pos": "CB", "club": "Borussia Dortmund", "ovr": 85, "base": 30, "nat": "Germany", "age": 26, "pace": 71, "shoot": 48, "pass_": 66, "drib": 59, "def_": 85, "phys": 83}, {"id": 145, "name": "Marcos Acuna", "type": "Defender", "pos": "LB", "club": "Sevilla FC", "ovr": 85, "base": 30, "nat": "Argentina", "age": 30, "pace": 76, "shoot": 74, "pass_": 83, "drib": 87, "def_": 80, "phys": 83}, {"id": 146, "name": "Theo Hernandez", "type": "Defender", "pos": "LB", "club": "AC Milan", "ovr": 85, "base": 30, "nat": "France", "age": 24, "pace": 93, "shoot": 72, "pass_": 76, "drib": 81, "def_": 78, "phys": 83}, {"id": 147, "name": "De Ligt", "type": "Defender", "pos": "CB", "club": "FC Bayern M\u00fcnchen", "ovr": 85, "base": 30, "nat": "Netherlands", "age": 22, "pace": 75, "shoot": 59, "pass_": 61, "drib": 69, "def_": 84, "phys": 87}, {"id": 148, "name": "Kyle Walker", "type": "Defender", "pos": "RB", "club": "Manchester City", "ovr": 85, "base": 30, "nat": "England", "age": 32, "pace": 91, "shoot": 63, "pass_": 77, "drib": 78, "def_": 80, "phys": 82}, {"id": 149, "name": "Rapha\u00ebl Varane", "type": "Defender", "pos": "CB", "club": "Manchester United", "ovr": 85, "base": 30, "nat": "France", "age": 29, "pace": 81, "shoot": 49, "pass_": 64, "drib": 66, "def_": 85, "phys": 80}, {"id": 150, "name": "Kieran Trippier", "type": "Defender", "pos": "RB", "club": "Newcastle United", "ovr": 84, "base": 30, "nat": "England", "age": 31, "pace": 70, "shoot": 64, "pass_": 82, "drib": 77, "def_": 80, "phys": 72}, {"id": 151, "name": "Carvajal", "type": "Defender", "pos": "RB", "club": "Real Madrid CF", "ovr": 84, "base": 30, "nat": "Spain", "age": 30, "pace": 82, "shoot": 54, "pass_": 77, "drib": 80, "def_": 78, "phys": 79}, {"id": 152, "name": "Lucas Hern\u00e1ndez", "type": "Defender", "pos": "CB", "club": "FC Bayern M\u00fcnchen", "ovr": 84, "base": 30, "nat": "France", "age": 26, "pace": 77, "shoot": 54, "pass_": 70, "drib": 71, "def_": 84, "phys": 80}, {"id": 153, "name": "Mats Hummels", "type": "Defender", "pos": "CB", "club": "Borussia Dortmund", "ovr": 84, "base": 30, "nat": "Germany", "age": 33, "pace": 53, "shoot": 59, "pass_": 76, "drib": 72, "def_": 87, "phys": 78}, {"id": 154, "name": "Eder Militao", "type": "Defender", "pos": "CB", "club": "Real Madrid CF", "ovr": 84, "base": 30, "nat": "Brazil", "age": 24, "pace": 86, "shoot": 50, "pass_": 70, "drib": 72, "def_": 85, "phys": 82}, {"id": 155, "name": "Joules Kounde", "type": "Defender", "pos": "CB", "club": "FC Barcelona", "ovr": 84, "base": 30, "nat": "France", "age": 23, "pace": 84, "shoot": 45, "pass_": 64, "drib": 74, "def_": 85, "phys": 78}, {"id": 156, "name": "Alphonso Davies", "type": "Defender", "pos": "LB", "club": "FC Bayern M\u00fcnchen", "ovr": 84, "base": 30, "nat": "Canada", "age": 21, "pace": 94, "shoot": 66, "pass_": 77, "drib": 85, "def_": 76, "phys": 77}, {"id": 157, "name": "Hakimi", "type": "Defender", "pos": "RB", "club": "Paris Saint-Germain", "ovr": 84, "base": 30, "nat": "Morocco", "age": 23, "pace": 92, "shoot": 75, "pass_": 79, "drib": 80, "def_": 75, "phys": 78}, {"id": 158, "name": "Alessandro Bastoni", "type": "Defender", "pos": "CB", "club": "Inter", "ovr": 84, "base": 30, "nat": "Italy", "age": 23, "pace": 73, "shoot": 35, "pass_": 69, "drib": 71, "def_": 86, "phys": 82}, {"id": 159, "name": "Reece James", "type": "Defender", "pos": "RB", "club": "Chelsea", "ovr": 84, "base": 30, "nat": "England", "age": 22, "pace": 81, "shoot": 70, "pass_": 82, "drib": 82, "def_": 80, "phys": 82}, {"id": 160, "name": "Gabriel", "type": "Defender", "pos": "CB", "club": "Arsenal", "ovr": 84, "base": 30, "nat": "Brazil", "age": 24, "pace": 68, "shoot": 36, "pass_": 60, "drib": 58, "def_": 83, "phys": 80}, {"id": 161, "name": "Upamecano", "type": "Defender", "pos": "CB", "club": "FC Bayern M\u00fcnchen", "ovr": 83, "base": 20, "nat": "France", "age": 23, "pace": 82, "shoot": 43, "pass_": 61, "drib": 68, "def_": 80, "phys": 81}, {"id": 162, "name": "Ronald Araujo", "type": "Defender", "pos": "CB", "club": "FC Barcelona", "ovr": 83, "base": 20, "nat": "Uruguay", "age": 23, "pace": 77, "shoot": 51, "pass_": 65, "drib": 61, "def_": 83, "phys": 83}, {"id": 163, "name": "Ferland Mendy", "type": "Defender", "pos": "LB", "club": "Real Madrid CF", "ovr": 83, "base": 20, "nat": "France", "age": 27, "pace": 92, "shoot": 64, "pass_": 77, "drib": 78, "def_": 78, "phys": 84}, {"id": 164, "name": "Ricardo Pereira", "type": "Defender", "pos": "RB", "club": "Leicester City", "ovr": 83, "base": 20, "nat": "Portugal", "age": 28, "pace": 79, "shoot": 67, "pass_": 79, "drib": 81, "def_": 80, "phys": 73}, {"id": 165, "name": "John Stones", "type": "Defender", "pos": "CB", "club": "Manchester City", "ovr": 83, "base": 20, "nat": "England", "age": 28, "pace": 72, "shoot": 51, "pass_": 71, "drib": 75, "def_": 84, "phys": 77}, {"id": 166, "name": "Cristian Romero", "type": "Defender", "pos": "CB", "club": "Tottenham Hotspur", "ovr": 83, "base": 20, "nat": "Argentina", "age": 24, "pace": 73, "shoot": 46, "pass_": 57, "drib": 65, "def_": 85, "phys": 82}, {"id": 167, "name": "Gimenez", "type": "Defender", "pos": "CB", "club": "Feyenoord", "ovr": 83, "base": 20, "nat": "Mexico", "age": 21, "pace": 74, "shoot": 76, "pass_": 67, "drib": 71, "def_": 52, "phys": 80}, {"id": 168, "name": "Grimaldo", "type": "Defender", "pos": "LB", "club": "SL Benfica", "ovr": 82, "base": 20, "nat": "Spain", "age": 26, "pace": 87, "shoot": 65, "pass_": 81, "drib": 83, "def_": 74, "phys": 71}, {"id": 169, "name": "Noussair Mazraoui", "type": "Defender", "pos": "RB", "club": "FC Bayern M\u00fcnchen", "ovr": 82, "base": 20, "nat": "Morocco", "age": 24, "pace": 84, "shoot": 66, "pass_": 77, "drib": 82, "def_": 76, "phys": 74}, {"id": 170, "name": "Ben Chilwell", "type": "Defender", "pos": "LB", "club": "Chelsea", "ovr": 82, "base": 20, "nat": "England", "age": 25, "pace": 76, "shoot": 60, "pass_": 78, "drib": 78, "def_": 78, "phys": 75}, {"id": 171, "name": "Denzel Dumfries", "type": "Defender", "pos": "RB", "club": "Inter", "ovr": 82, "base": 20, "nat": "Netherlands", "age": 26, "pace": 83, "shoot": 63, "pass_": 70, "drib": 73, "def_": 78, "phys": 89}, {"id": 172, "name": "Josko Gvardiol", "type": "Defender", "pos": "CB", "club": "RB Leipzig", "ovr": 82, "base": 20, "nat": "Croatia", "age": 20, "pace": 82, "shoot": 54, "pass_": 69, "drib": 74, "def_": 80, "phys": 83}, {"id": 173, "name": "Manuel Akanji", "type": "Defender", "pos": "CB", "club": "Manchester City", "ovr": 82, "base": 20, "nat": "Switzerland", "age": 26, "pace": 77, "shoot": 48, "pass_": 70, "drib": 74, "def_": 83, "phys": 78}, {"id": 174, "name": "William Saliba", "type": "Defender", "pos": "CB", "club": "Arsenal", "ovr": 82, "base": 20, "nat": "France", "age": 21, "pace": 78, "shoot": 39, "pass_": 67, "drib": 71, "def_": 80, "phys": 79}, {"id": 175, "name": "Christensen", "type": "Defender", "pos": "CB", "club": "V\u00e5lerenga Fotball", "ovr": 82, "base": 20, "nat": "Norway", "age": 22, "pace": 71, "shoot": 56, "pass_": 64, "drib": 69, "def_": 47, "phys": 62}, {"id": 176, "name": "Nacho", "type": "Defender", "pos": "CB", "club": "CD Tenerife", "ovr": 82, "base": 20, "nat": "Spain", "age": 33, "pace": 76, "shoot": 56, "pass_": 67, "drib": 68, "def_": 67, "phys": 71}, {"id": 177, "name": "Jes\u00fas Navas", "type": "Defender", "pos": "RB", "club": "Sevilla FC", "ovr": 81, "base": 20, "nat": "Spain", "age": 36, "pace": 85, "shoot": 68, "pass_": 82, "drib": 81, "def_": 79, "phys": 57}, {"id": 178, "name": "Cucurella", "type": "Defender", "pos": "LB", "club": "Chelsea", "ovr": 81, "base": 20, "nat": "Spain", "age": 23, "pace": 76, "shoot": 68, "pass_": 78, "drib": 80, "def_": 77, "phys": 74}, {"id": 179, "name": "Porro", "type": "Defender", "pos": "RB", "club": "Sporting CP", "ovr": 81, "base": 20, "nat": "Spain", "age": 22, "pace": 82, "shoot": 71, "pass_": 75, "drib": 80, "def_": 75, "phys": 78}, {"id": 180, "name": "Pavard", "type": "Defender", "pos": "LB", "club": "FC Bayern M\u00fcnchen", "ovr": 81, "base": 20, "nat": "France", "age": 26, "pace": 66, "shoot": 55, "pass_": 72, "drib": 71, "def_": 81, "phys": 78}, {"id": 181, "name": "Frimpong", "type": "Defender", "pos": "RB", "club": "Bayer 04 Leverkusen", "ovr": 81, "base": 20, "nat": "Netherlands", "age": 21, "pace": 94, "shoot": 54, "pass_": 73, "drib": 83, "def_": 72, "phys": 70}, {"id": 182, "name": "Tah", "type": "Defender", "pos": "CB", "club": "Bayer 04 Leverkusen", "ovr": 81, "base": 20, "nat": "Germany", "age": 26, "pace": 67, "shoot": 37, "pass_": 59, "drib": 61, "def_": 83, "phys": 85}, {"id": 183, "name": "Harry Maguire", "type": "Defender", "pos": "CB", "club": "Manchester United", "ovr": 80, "base": 20, "nat": "England", "age": 29, "pace": 48, "shoot": 57, "pass_": 68, "drib": 67, "def_": 80, "phys": 84}, {"id": 184, "name": "Reguil\u00f3n", "type": "Defender", "pos": "LB", "club": "Atl\u00e9tico de Madrid", "ovr": 80, "base": 20, "nat": "Spain", "age": 25, "pace": 83, "shoot": 57, "pass_": 74, "drib": 78, "def_": 77, "phys": 69}, {"id": 185, "name": "Ben white", "type": "Defender", "pos": "CB", "club": "Preston North End", "ovr": 80, "base": 20, "nat": "England", "age": 26, "pace": 68, "shoot": 64, "pass_": 69, "drib": 70, "def_": 65, "phys": 72}, {"id": 186, "name": "Nathan Ake", "type": "Defender", "pos": "CB", "club": "Manchester City", "ovr": 80, "base": 20, "nat": "Netherlands", "age": 27, "pace": 76, "shoot": 53, "pass_": 70, "drib": 70, "def_": 79, "phys": 75}, {"id": 187, "name": "Dalot", "type": "Defender", "pos": "RB", "club": "Juventus", "ovr": 80, "base": 20, "nat": "Brazil", "age": 30, "pace": 72, "shoot": 67, "pass_": 73, "drib": 74, "def_": 81, "phys": 79}, {"id": 188, "name": "Kim Min Jae", "type": "Defender", "pos": "CB", "club": "Napoli", "ovr": 79, "base": 20, "nat": "Korea Republic", "age": 25, "pace": 80, "shoot": 33, "pass_": 57, "drib": 62, "def_": 79, "phys": 84}, {"id": 189, "name": "Raphael Guerreiro", "type": "Defender", "pos": "LB", "club": "Borussia Dortmund", "ovr": 82, "base": 20, "nat": "Portugal", "age": 28, "pace": 74, "shoot": 77, "pass_": 86, "drib": 87, "def_": 75, "phys": 55}, {"id": 190, "name": "Lisandro Martinez", "type": "Defender", "pos": "CB", "club": "Manchester United", "ovr": 82, "base": 20, "nat": "Argentina", "age": 24, "pace": 72, "shoot": 60, "pass_": 76, "drib": 77, "def_": 82, "phys": 83}, {"id": 191, "name": "Leonardo Bonucci", "type": "Defender", "pos": "CB", "club": "Juventus", "ovr": 82, "base": 20, "nat": "Italy", "age": 35, "pace": 54, "shoot": 59, "pass_": 69, "drib": 71, "def_": 85, "phys": 78}, {"id": 192, "name": "Nicolas Otamendi", "type": "Defender", "pos": "CB", "club": "SL Benfica", "ovr": 81, "base": 20, "nat": "Argentina", "age": 34, "pace": 63, "shoot": 57, "pass_": 62, "drib": 59, "def_": 83, "phys": 81}, {"id": 193, "name": "luke shaw", "type": "Defender", "pos": "LB", "club": "Manchester United", "ovr": 81, "base": 20, "nat": "England", "age": 26, "pace": 76, "shoot": 54, "pass_": 78, "drib": 78, "def_": 79, "phys": 78}, {"id": 194, "name": "Bremer", "type": "Defender", "pos": "CB", "club": "Juventus", "ovr": 83, "base": 20, "nat": "Brazil", "age": 25, "pace": 78, "shoot": 50, "pass_": 56, "drib": 65, "def_": 84, "phys": 79}];
+const CONSTRAINTS = {Forwards:[2,4], Midfield:[2,5], Defender:[3,5], Goalkeeper:[1,2]};
+const TOTAL_MIN=11, TOTAL_MAX=16;
+
+let state = JSON.parse(localStorage.getItem('auctionState')||'null') || {
+  numTeams:10, startPurse:900, myTeam:1,
+  teams: Array.from({length:10},(_,i)=>({id:i+1,name:'Team '+(i+1),spent:0,players:[]})),
+  sold: {} // playerId -> {teamId, price}
+};
+
+function save(){ localStorage.setItem('auctionState', JSON.stringify(state)); }
+
+function ensureTeams(){
+  const n = state.numTeams;
+  if(state.teams.length!==n){
+    state.teams = Array.from({length:n},(_,i)=> state.teams[i] || {id:i+1,name:'Team '+(i+1),spent:0,players:[]});
+    state.teams.forEach((t,i)=>t.id=i+1);
+  }
+}
+ensureTeams();
+
+function myTeam(){ return state.teams.find(t=>t.id===state.myTeam) || state.teams[0]; }
+function remainingPurse(team){ return state.startPurse - team.spent; }
+
+function countByType(team){
+  const c={Forwards:0,Midfield:0,Defender:0,Goalkeeper:0};
+  team.players.forEach(p=>{ const pl=PLAYERS.find(x=>x.id===p.id); if(pl) c[pl.type]=(c[pl.type]||0)+1; });
+  return c;
+}
+
+function nextIncrement(price){
+  if(price<30) return 1;
+  if(price<50) return 2;
+  if(price<100) return 5;
+  return 10;
+}
+
+function isSold(id){ return !!state.sold[id]; }
+
+function percentileMultiplier(player){
+  const pool = PLAYERS.filter(p=>p.type===player.type).sort((a,b)=>b.ovr-a.ovr);
+  const rank = pool.findIndex(p=>p.id===player.id);
+  const pct = 1 - rank/pool.length; // 1 = best
+  if(pct >= 0.90) return 3.2;
+  if(pct >= 0.75) return 2.4;
+  if(pct >= 0.50) return 1.7;
+  if(pct >= 0.25) return 1.3;
+  return 1.05;
+}
+
+function observedInflation(type){
+  const sales = Object.keys(state.sold).map(id=>{
+    const s=state.sold[id]; const p=PLAYERS.find(x=>x.id==id); return {p,price:s.price};
+  }).filter(s=>s.p && s.p.type===type);
+  if(sales.length===0) return 1;
+  const avg = sales.reduce((a,s)=>a+s.price/s.p.base,0)/sales.length;
+  return Math.max(1, avg);
+}
+
+function avgUnsoldBase(type, excludeId){
+  const list = PLAYERS.filter(p=>p.type===type && !isSold(p.id) && p.id!==excludeId);
+  if(list.length===0) return 20;
+  return list.reduce((a,p)=>a+p.base,0)/list.length;
+}
+
+function recommendation(player, bidPrice){
+  const team = myTeam();
+  const remain = remainingPurse(team);
+  const counts = countByType(team);
+  const totalOwned = team.players.length;
+  const [minReq,maxReq] = CONSTRAINTS[player.type];
+  const reasons = [];
+
+  if(isSold(player.id)){
+    const s = state.sold[player.id];
+    const t = state.teams.find(x=>x.id===s.teamId);
+    return {verdict:'PASS', reasons:[`Already sold to ${t?t.name:'a team'} for ${s.price} cr.`], ceiling:null};
+  }
+  if(counts[player.type] >= maxReq){
+    return {verdict:'PASS', reasons:[`You already have the max ${maxReq} ${player.type.toLowerCase()} — this slot is full.`], ceiling:null};
+  }
+  if(totalOwned >= TOTAL_MAX){
+    return {verdict:'PASS', reasons:[`Your squad is already at the ${TOTAL_MAX}-player cap.`], ceiling:null};
+  }
+
+  // --- Budget-safe ceiling: max you can spend on THIS player and still afford minimums elsewhere ---
+  let reserveNeeded = 0;
+  Object.keys(CONSTRAINTS).forEach(type=>{
+    const projectedOwned = (type===player.type) ? counts[type]+1 : counts[type];
+    const need = Math.max(0, CONSTRAINTS[type][0] - projectedOwned);
+    if(need>0) reserveNeeded += need * avgUnsoldBase(type, player.id);
+  });
+  const budgetSafeMax = Math.floor(remain - reserveNeeded);
+
+  // --- Value ceiling: quality-tier multiplier x observed market inflation for this position ---
+  const mult = percentileMultiplier(player);
+  const infl = observedInflation(player.type);
+  const valueMax = Math.round(player.base * mult * infl);
+
+  const ceiling = Math.max(player.base, Math.min(budgetSafeMax, valueMax));
+  const bindingBudget = budgetSafeMax < valueMax;
+
+  let verdict;
+  if(budgetSafeMax < player.base){
+    verdict = 'PASS';
+    reasons.push(`Even at the base price you can't safely afford this without risking your minimum squad. Budget-safe max is ${Math.max(budgetSafeMax,0)} cr.`);
+  } else if(bidPrice > ceiling){
+    verdict = 'PASS';
+    reasons.push(`Current bid (${bidPrice} cr) is already above your recommended ceiling of ${ceiling} cr. Let it go.`);
+  } else if(bidPrice >= ceiling*0.85){
+    verdict = 'CAUTION';
+    reasons.push(`Getting close to your ceiling — one or two more raises and you should stop.`);
+  } else {
+    verdict = mult>=2.4 ? 'STRONG BUY' : 'BUY';
+    reasons.push(`Comfortably inside your ceiling — safe to keep bidding here.`);
+  }
+
+  reasons.push(`Value ceiling: ${valueMax} cr (this player ranks in the ${mult>=3.2?'top 10%':mult>=2.4?'top 25%':mult>=1.7?'top 50%':mult>=1.3?'top 75%':'bottom 25%'} of ${player.type.toLowerCase()}s by rating${infl>1.01?`, and the market has been paying ~${infl.toFixed(1)}x base for ${player.type.toLowerCase()}s so far`:''}).`);
+  reasons.push(`Budget-safe ceiling: ${Math.max(budgetSafeMax,0)} cr — the most you can spend here and still afford minimums at every position (${remain} cr left, ~${Math.round(reserveNeeded)} cr reserved for other required slots).`);
+  reasons.push(`${bindingBudget?'Your budget':'Player quality/market value'} is the binding limit right now.`);
+
+  if(minReq - counts[player.type] > 0){
+    reasons.push(`You still need ${minReq-counts[player.type]} more ${player.type.toLowerCase()}(s) to hit the minimum.`);
+  }
+
+  // alternatives
+  const alts = PLAYERS.filter(p=>p.type===player.type && p.id!==player.id && !isSold(p.id)).sort((a,b)=>b.ovr-a.ovr).slice(0,3);
+  const altText = alts.length ? `Next best available ${player.type.toLowerCase()}s if you pass: ` + alts.map(a=>`${a.name} (OVR ${a.ovr}, base ${a.base}cr)`).join(', ') + '.' : `No other unsold ${player.type.toLowerCase()}s left in the pool.`;
+  reasons.push(altText);
+  reasons.push(`Next bid increment from ${bidPrice} cr is +${nextIncrement(bidPrice)} cr.`);
+
+  return {verdict, reasons, ceiling};
+}
+
+function pillClass(v){
+  if(v==='STRONG BUY'||v==='BUY') return 'pill-buy';
+  if(v==='CAUTION'||v==='CONSIDER') return 'pill-consider';
+  return 'pill-pass';
+}
+
+// ---- Tabs ----
+document.querySelectorAll('.tab').forEach(t=>{
+  t.onclick=()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    document.querySelectorAll('.tabpane').forEach(p=>p.style.display='none');
+    document.getElementById('tab-'+t.dataset.tab).style.display='block';
+    if(t.dataset.tab==='best') renderBest();
+    if(t.dataset.tab==='squad') renderSquad();
+    if(t.dataset.tab==='teams') renderTeams();
+    if(t.dataset.tab==='setup') renderSetup();
+  };
+});
+
+// ---- Advisor ----
+const searchBox = document.getElementById('searchBox');
+const searchResults = document.getElementById('searchResults');
+let selectedPlayer = null;
+
+searchBox.addEventListener('input', ()=>{
+  const q = searchBox.value.trim().toLowerCase();
+  if(q.length<2){ searchResults.style.display='none'; return; }
+  const matches = PLAYERS.filter(p=>p.name.toLowerCase().includes(q)).slice(0,8);
+  searchResults.innerHTML = matches.map(p=>`<div data-id="${p.id}">${p.name} <span class="muted small">· ${p.pos} · ${p.club} · OVR ${p.ovr}</span></div>`).join('') || '<div class="muted">No matches</div>';
+  searchResults.style.display='block';
+  searchResults.querySelectorAll('div[data-id]').forEach(el=>{
+    el.onclick=()=>{ selectedPlayer = PLAYERS.find(p=>p.id==el.dataset.id); searchBox.value=selectedPlayer.name; searchResults.style.display='none'; renderAdvisor(); };
+  });
+});
+document.addEventListener('click',(e)=>{ if(!e.target.closest('.rel')) searchResults.style.display='none'; });
+
+function renderAdvisor(){
+  const out = document.getElementById('advisorOut');
+  if(!selectedPlayer){ out.innerHTML=''; return; }
+  const p = selectedPlayer;
+  const sold = isSold(p.id);
+  out.innerHTML = `
+    <div class="card">
+      <div class="flex-between">
+        <div><div class="name" style="font-size:1.1rem">${p.name}</div><div class="muted small">${p.club} · ${p.nat} · Age ${p.age}</div></div>
+        <div class="pill" style="background:var(--panel2);color:var(--text)">${p.type} · ${p.pos}</div>
+      </div>
+      <div class="grid" style="margin-top:12px;">
+        <div class="stat"><b>${p.ovr}</b><span>OVR</span></div>
+        <div class="stat"><b>${p.base}</b><span>Base cr</span></div>
+        <div class="stat"><b>${p.pace??'-'}</b><span>Pace</span></div>
+        <div class="stat"><b>${p.shoot??'-'}</b><span>Shoot</span></div>
+        <div class="stat"><b>${p.pass_??'-'}</b><span>Pass</span></div>
+        <div class="stat"><b>${p.drib??'-'}</b><span>Dribble</span></div>
+        <div class="stat"><b>${p.def_??'-'}</b><span>Defend</span></div>
+        <div class="stat"><b>${p.phys??'-'}</b><span>Physical</span></div>
+      </div>
+    </div>
+    ${sold ? `<div class="card warnbanner">This player is already marked SOLD.</div>` : `
+    <div class="card">
+      <label>Current bid on the floor (crores)</label>
+      <input id="bidInput" type="number" value="${p.base}" min="${p.base}">
+      <div style="height:10px"></div>
+      <div id="verdictBox"></div>
+      <div class="row" style="margin-top:12px;">
+        <button class="btn-mine" id="markMine">Mark bought by me</button>
+        <button class="btn-them" id="markThem">Mark bought by another team</button>
+      </div>
+    </div>`}
+  `;
+  if(!sold){
+    const bidInput = document.getElementById('bidInput');
+    const updateVerdict = ()=>{
+      const bid = parseFloat(bidInput.value)||p.base;
+      const r = recommendation(p, bid);
+      document.getElementById('verdictBox').innerHTML = `
+        <span class="pill ${pillClass(r.verdict)}">${r.verdict}</span>
+        ${r.ceiling!==null ? `<div class="verdict">Bid up to ${r.ceiling} cr</div>` : ''}
+        <ul class="reasons">${r.reasons.map(x=>`<li>${x}</li>`).join('')}</ul>
+      `;
+    };
+    bidInput.addEventListener('input', updateVerdict);
+    updateVerdict();
+    document.getElementById('markMine').onclick=()=>markSold(p, parseFloat(bidInput.value)||p.base, state.myTeam);
+    document.getElementById('markThem').onclick=()=>{
+      const opts = state.teams.filter(t=>t.id!==state.myTeam).map(t=>`${t.id}: ${t.name}`).join(', ');
+      const pick = prompt('Winning team ID?\\n'+opts, state.teams.find(t=>t.id!==state.myTeam)?.id||'');
+      if(pick){ const tid = parseInt(pick); if(state.teams.find(t=>t.id===tid)) markSold(p, parseFloat(bidInput.value)||p.base, tid); }
+    };
+  }
+}
+
+function markSold(p, price, teamId){
+  const team = state.teams.find(t=>t.id===teamId);
+  team.spent += price;
+  team.players.push({id:p.id, price});
+  state.sold[p.id] = {teamId, price};
+  save();
+  renderAdvisor(); renderBest(); renderSquad(); renderTeams();
+}
+
+// ---- Best Available ----
+function renderBest(){
+  const type = document.getElementById('bestType').value;
+  const sort = document.getElementById('bestSort').value;
+  const avail = document.getElementById('bestAvail').value;
+  let list = PLAYERS.slice();
+  if(type) list = list.filter(p=>p.type===type);
+  if(avail==='unsold') list = list.filter(p=>!isSold(p.id));
+  list.forEach(p=>p._value = p.ovr/p.base);
+  if(sort==='value') list.sort((a,b)=>b._value-a._value);
+  if(sort==='ovr') list.sort((a,b)=>b.ovr-a.ovr);
+  if(sort==='base') list.sort((a,b)=>a.base-b.base);
+  list = list.slice(0,60);
+  document.getElementById('bestBody').innerHTML = list.map(p=>`
+    <tr class="${isSold(p.id)?'sold':''}">
+      <td class="name">${p.name}<div class="muted small">${p.club}</div></td>
+      <td>${p.pos}</td><td>${p.ovr}</td><td>${p.base}</td><td>${p._value.toFixed(2)}</td>
+      <td><button class="btn-ghost" onclick="jumpToAdvisor(${p.id})">View</button></td>
+    </tr>`).join('');
+}
+window.jumpToAdvisor = function(id){
+  selectedPlayer = PLAYERS.find(p=>p.id===id);
+  document.querySelector('.tab[data-tab="advisor"]').click();
+  searchBox.value = selectedPlayer.name;
+  renderAdvisor();
+};
+['bestType','bestSort','bestAvail'].forEach(id=>document.getElementById(id).addEventListener('change', renderBest));
+
+// ---- My Squad ----
+function renderSquad(){
+  const team = myTeam();
+  const counts = countByType(team);
+  const remain = remainingPurse(team);
+  document.getElementById('squadSummary').innerHTML = `
+    <div class="grid">
+      <div class="stat"><b>${remain}</b><span>Purse left</span></div>
+      <div class="stat"><b>${team.spent}</b><span>Spent</span></div>
+      <div class="stat"><b>${team.players.length}/${TOTAL_MAX}</b><span>Squad size</span></div>
+      <div class="stat"><b>${counts.Forwards}/4</b><span>Forwards</span></div>
+      <div class="stat"><b>${counts.Midfield}/5</b><span>Midfield</span></div>
+      <div class="stat"><b>${counts.Defender}/5</b><span>Defenders</span></div>
+      <div class="stat"><b>${counts.Goalkeeper}/2</b><span>GKs</span></div>
+    </div>
+    ${team.players.length<TOTAL_MIN?`<div class="warnbanner" style="margin-top:12px;">Need ${TOTAL_MIN-team.players.length} more players to reach the 11-player minimum.</div>`:''}
+  `;
+  document.getElementById('squadCount').innerText = team.players.length+' players';
+  document.getElementById('squadBody').innerHTML = team.players.map(sp=>{
+    const p = PLAYERS.find(x=>x.id===sp.id);
+    return `<tr><td class="name">${p.name}</td><td>${p.type}</td><td>${p.pos}</td><td>${p.ovr}</td><td>${sp.price} cr</td>
+      <td><button class="btn-ghost" onclick="undoBuy(${p.id})">Undo</button></td></tr>`;
+  }).join('') || '<tr><td class="muted" colspan="6">No players yet.</td></tr>';
+}
+window.undoBuy = function(id){
+  const s = state.sold[id]; if(!s) return;
+  const team = state.teams.find(t=>t.id===s.teamId);
+  team.spent -= s.price;
+  team.players = team.players.filter(x=>x.id!==id);
+  delete state.sold[id];
+  save(); renderSquad(); renderBest(); renderTeams();
+};
+
+// ---- All Teams ----
+function renderTeams(){
+  document.getElementById('teamsList').innerHTML = state.teams.map(t=>`
+    <div class="teamcard">
+      <div><b>${t.name}</b>${t.id===state.myTeam?' <span class="badge">Mine</span>':''}<div class="muted small">${t.players.length} players</div></div>
+      <div class="badge">${remainingPurse(t)} cr left</div>
+    </div>`).join('');
+  const log = [];
+  Object.keys(state.sold).forEach(id=>{
+    const s = state.sold[id]; const p = PLAYERS.find(x=>x.id==id); const t = state.teams.find(x=>x.id===s.teamId);
+    log.push({p,t,price:s.price,id});
+  });
+  document.getElementById('logBody').innerHTML = log.map(l=>`
+    <tr><td class="name">${l.p.name}</td><td>${l.t.name}</td><td>${l.price} cr</td>
+    <td><button class="btn-ghost" onclick="undoBuy(${l.id})">Undo</button></td></tr>`).join('') || '<tr><td class="muted" colspan="4">No sales logged yet.</td></tr>';
+}
+document.getElementById('clearLog').onclick = ()=>{
+  if(confirm('Reset all purses, rosters and sales? This cannot be undone.')){
+    localStorage.removeItem('auctionState');
+    state = JSON.parse(localStorage.getItem('auctionState')||'null') || {
+      numTeams:10, startPurse:900, myTeam:1,
+      teams: Array.from({length:10},(_,i)=>({id:i+1,name:'Team '+(i+1),spent:0,players:[]})),
+      sold: {}
+    };
+    ensureTeams(); renderAll();
+  }
+};
+
+// ---- Setup ----
+function renderSetup(){
+  document.getElementById('numTeams').value = state.numTeams;
+  document.getElementById('startPurse').value = state.startPurse;
+  const sel = document.getElementById('myTeamSel');
+  sel.innerHTML = state.teams.map(t=>`<option value="${t.id}" ${t.id===state.myTeam?'selected':''}>${t.name}</option>`).join('');
+}
+document.getElementById('applySetup').onclick = ()=>{
+  const n = parseInt(document.getElementById('numTeams').value)||10;
+  state.numTeams = n;
+  state.startPurse = parseFloat(document.getElementById('startPurse').value)||900;
+  ensureTeams();
+  state.myTeam = parseInt(document.getElementById('myTeamSel').value);
+  save();
+  renderAll();
+  alert('Setup applied.');
+};
+
+function renderAll(){ renderAdvisor(); renderBest(); renderSquad(); renderTeams(); renderSetup(); }
+renderAll();
+</script>
+</body>
+</html>
